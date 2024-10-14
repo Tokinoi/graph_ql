@@ -13,8 +13,10 @@
   "description": "API REST GRAPH QL TP - MDS MBA M1",
   "dependencies": {
     "@apollo/server": "^4.11.0",
+    "@prisma/client": "^5.20.0",
     "express": "^4.21.1",
     "graphql": "^16.9.0",
-    "nodemon": "^3.1.7"
+    "nodemon": "^3.1.7",
+    "prisma": "^5.20.0"
   }
 }
