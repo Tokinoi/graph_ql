@@ -1,6 +1,8 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import {PrismaClient} from "@prisma/client";
+import DataLoader from 'DataLoader';
+
 
 const prisma = new PrismaClient();
 
@@ -46,75 +48,74 @@ type Mutation{
 
 `;
 
-const books = [
-    {
-        id:1,
-        title: 'The Awakening',
-        authorID: 1,
-        categoryId: 2
-    },
-    {
-        id:2,
-        title: 'City of Glass',
-        authorID: 2,
-        categoryId: 1
-    },
-];
+const authorById = new DataLoader(async (ids) => {
+    const authors = await prisma.author.findMany({
+        where : {id: { in: ids }}
+    })
+    return ids.map((id)=> authors.find((author) => author.id ===id));
+});
 
-const authors = [
-    {
-        id: 1,
-        name: 'Jean',
-    },
-    {
-        id: 2,
-        name: 'Seb',
-    },
-];
+const bookById = new DataLoader(async (ids) => {
+    const books = await prisma.book.findMany({
+        where : {id: { in: ids }}
+    })
+    return ids.map((id)=> books.find((book) => book.id ===id));
+});
 
-const categories = [
-    {
-        id: 1,
-        name: 'Horreur'
-    },
-    {
-        id: 2,
-        name: 'Romance'
-    }
-];
+const categoryById = new DataLoader(async (ids) => {
+    const categories = await prisma.category.findMany({
+        where : {id: { in: ids }}
+    })
+    return ids.map((id)=> categories.find((category) => category.id ===id));
+});
+
+const booksByAuthorId = new DataLoader(async (ids) => {
+    const books = await prisma.book.findMany({
+        where : {id: { in: ids }}
+    })
+    return ids.map((id)=> books.filter((book) => book.authorID ===id));
+});
+
+const booksByCategoryId = new DataLoader(async (ids) => {
+    const books = await prisma.book.findMany({
+        where : {id: { in: ids }}
+    })
+    return ids.map((id)=> books.filter((book) => book.categoryID ===id));
+});
+
 
 const resolvers = {
     Query: {
         books: () => prisma.book.findMany(),
-        bookById:(_,{ id })=> prisma.book.findUnique({where : { id }}),
-        authorById:(_,{ id })=> prisma.author.findUnique({where:{id}}),
-        categoryById:(_,{ id })=> prisma.category.findUnique({where:{id}}),
+        bookById:(_,{ id })=> bookById.load(id),
+        authorById:(_,{ id })=> authorById.load(id),
+        categoryById:(_,{ id })=> categoryById.load(id),
         authors: () => prisma.author.findMany(),
         categories: () => prisma.category.findMany(),
 
     },
 
     Book: {
-        author: ({authorID}) => prisma.author.findUnique({where : { id:authorID }}),
-        category: ({categoryID}) => prisma.category.findUnique({where:{ id:categoryID }}),
+        author: (parent) => authorById.load(parent.authorID),
+        category: (parent) => categoryById.load(parent.categoryID),
     },
 
     Author: {
-        books: ({authorID}) => prisma.book.findMany({where : { id:authorID }}),
+        books: (parent) => booksByAuthorId.load(parent.id),
     },
     Category: {
-        books: ({categoryID}) => prisma.book.findMany({where : { id:categoryID }}),
+        books: (parent) => booksByCategoryId.load(parent.id),
     },
     Mutation: {
         createBook: async (_, { input }) => {
-            const newBook = await prisma.book.create({
+            return prisma.book.create({
                 data: {
                     title: input.title,
                     authorID: input.authorId,  // ID de l'auteur
                     categoryID: input.categoryId,  // ID de la catégorie
                 },
             });
-            return newBook;
+
         }
     }
 
